@@ -2,7 +2,6 @@ const express = require('express');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
-
 const errorHandler = require('./middleware/errorHandler');
 
 dotenv.config();
@@ -20,6 +19,9 @@ fs.readdirSync(routesPath).forEach((folder) => {
 });
 
 app.use(errorHandler);
+
+const connectDB = require('./config/db');
+connectDB();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

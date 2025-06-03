@@ -1,83 +1,106 @@
-const { patients } = require("../models/patientModel");
-const { doctors } = require("../models/doctorModel");
-const { appointments } = require("../models/appointmentModel");
-const { v4: uuid } = require("uuid");
+const Patient = require("../models/patientModel");
+const Doctor = require("../models/doctorModel");
+const Appointment = require("../models/appointmentModel");
 
-const registerPatient = (req, res) => {
-  const patient = { id: uuid(), ...req.body };
-  patients.push(patient);
-  res.status(201).json({ message: "Patient registered", patient });
+const registerPatient = async (req, res) => {
+  try {
+    const patient = new Patient(req.body);
+    await patient.save();
+    res.status(201).json({ message: "Patient registered", patient });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to register patient" });
+  }
 };
 
-const bookAppointment = (req, res) => {
-  const { patientId, doctorId, slot } = req.body;
+const bookAppointment = async (req, res) => {
+  try {
+    const { patientId, doctorId, slot } = req.body;
 
-  const existing = appointments.find(
-    (app) => app.patientId === patientId && app.slot === slot
-  );
-  if (existing)
-    return res
-      .status(400)
-      .json({ error: "Slot already booked by this patient" });
+    const conflict = await Appointment.findOne({ patientId, slot });
+    if (conflict)
+      return res
+        .status(400)
+        .json({ error: "Slot already booked by this patient" });
 
-  const appointment = { id: uuid(), patientId, doctorId, slot };
-  appointments.push(appointment);
-  res.status(201).json({ message: "Appointment booked", appointment });
+    const appointment = new Appointment({ patientId, doctorId, slot });
+    await appointment.save();
+    res.status(201).json({ message: "Appointment booked", appointment });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to book appointment" });
+  }
 };
 
-const getAppointments = (req, res) => {
-  const { patientId } = req.params;
-  const result = appointments.filter((app) => app.patientId === patientId);
-  res.json(result);
+const getAppointments = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const appointments = await Appointment.find({ patientId });
+    res.json(appointments);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get appointments" });
+  }
 };
 
-const cancelAppointment = (req, res) => {
-  const { patientId } = req.params;
-  const { appointmentId } = req.body;
+const cancelAppointment = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { appointmentId } = req.body;
 
-  const index = appointments.findIndex(
-    (app) => app.id === appointmentId && app.patientId === patientId
-  );
-  if (index === -1)
-    return res.status(404).json({ error: "Appointment not found" });
+    const deleted = await Appointment.findOneAndDelete({
+      _id: appointmentId,
+      patientId,
+    });
+    if (!deleted)
+      return res.status(404).json({ error: "Appointment not found" });
 
-  appointments.splice(index, 1);
-  res.json({ message: "Appointment cancelled" });
+    res.json({ message: "Appointment cancelled" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to cancel appointment" });
+  }
 };
 
-const getAllPatients = (req, res) => {
+const getAllPatients = async (req, res) => {
+  const patients = await Patient.find();
   res.json(patients);
 };
 
-const getOpenDoctorSlots = (req, res) => {
-  const { speciality, slot } = req.query;
+const getOpenDoctorSlots = async (req, res) => {
+  try {
+    const { speciality, slot } = req.query;
 
-  // Filter doctors by speciality if provided
-  let filteredDoctors = speciality
-    ? doctors.filter(d => d.speciality.toLowerCase() === speciality.toLowerCase())
-    : doctors;
+    const doctorFilter = speciality
+      ? { speciality: { $regex: new RegExp(speciality, "i") } }
+      : {};
+    const doctors = await Doctor.find(doctorFilter);
 
-  // Collect all open slots per doctor
-  const results = filteredDoctors.map(doctor => {
-    const bookedSlots = appointments
-      .filter(a => a.doctorId === doctor.id)
-      .map(a => a.slot);
+    const appointments = await Appointment.find();
+    const doctorAppointments = appointments.reduce((acc, app) => {
+      if (!acc[app.doctorId]) acc[app.doctorId] = new Set();
+      acc[app.doctorId].add(app.slot);
+      return acc;
+    }, {});
 
-    const availableSlots = (doctor.slots || []).filter(s => !bookedSlots.includes(s));
+    const results = doctors
+      .map((doc) => {
+        const booked = doctorAppointments[doc._id] || new Set();
+        const availableSlots = (doc.slots || []).filter((s) => !booked.has(s));
 
-    return {
-      doctorId: doctor.id,
-      doctorName: doctor.name,
-      speciality: doctor.speciality,
-      availableSlots: slot
-        ? availableSlots.filter(s => s === slot)
-        : availableSlots
-    };
-  }).filter(d => d.availableSlots.length > 0); // Only keep doctors with open slots
+        return {
+          doctorId: doc._id,
+          doctorName: doc.name,
+          speciality: doc.speciality,
+          averageRating: doc.averageRating || 0,
+          availableSlots: slot
+            ? availableSlots.filter((s) => s === slot)
+            : availableSlots,
+        };
+      })
+      .filter((doc) => doc.availableSlots.length > 0);
 
-  res.json(results);
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch open slots" });
+  }
 };
-
 
 module.exports = {
   registerPatient,

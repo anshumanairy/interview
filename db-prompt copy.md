@@ -2,8 +2,11 @@
 
 I need help creating a Node.js/Express.js application with the following requirements:
 
-[PASTE YOUR INTERVIEW REQUIREMENTS HERE]
-
+[INTERVIEW REQUIREMENTS BELOW HERE]
+For the specific requirements of my interview question:
+- hospital management
+- one doctor, one patient, doctor can register and give speciality, slot register appointment for doctor, patient registration and selects slot based on doctor's speciality. patient should be able to book appointment. patient cannot book same timeslot with 2 doctor. all patients and doctor can see their own appointments. all types of sorting for checking appointments
+- bonus: patients can cancel appointment, every doctor can be rated based on ranking, ranking calculated based on patient who rated them
 Please help me set up the project with the following structure and best practices:
 
 ## 1. Project Structure
@@ -14,6 +17,8 @@ src/
 │   │   └── index.js  # Routes for feature1
 │   └── feature2/
 │       └── index.js
+├── db/ 
+│   ├── db.js         # Use mongo unless specified in problem statement
 ├── middleware/ 
 │   ├── errorHandler.js
 ├── services/         # Business logic layer
@@ -59,8 +64,3 @@ src/
 - Include proper comments and documentation
 
 Please help me implement this structure and provide the necessary code for each component. Also, include a package.json with the required dependencies.
-
-For the specific requirements of my interview question:
-- hospital management
-- one doctor, one patient, doctor can register and give speciality, slot register appointment for doctor, patient registration and selects slot based on doctor's speciality. patient should be able to book appointment. patient cannot book same timeslot with 2 doctor. all patients and doctor can see their own appointments. all types of sorting for checking appointments
-- bonus: patients can cancel appointment, every doctor can be rated based on ranking, ranking calculated based on patient who rated them

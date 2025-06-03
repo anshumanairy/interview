@@ -1,63 +1,87 @@
-const { doctors } = require("../models/doctorModel");
-const { appointments } = require("../models/appointmentModel");
-const { v4: uuid } = require("uuid");
+const Doctor = require("../models/doctorModel");
+const Appointment = require("../models/appointmentModel");
 
-const registerDoctor = (req, res) => {
-  const doctor = { id: uuid(), ...req.body, ratings: [] };
-  doctors.push(doctor);
-  res.status(201).json({ message: "Doctor registered", doctor });
+const registerDoctor = async (req, res) => {
+  try {
+    const doctor = new Doctor({ ...req.body, slots: [], ratings: [] });
+    await doctor.save();
+    res.status(201).json({ message: "Doctor registered", doctor });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ error: "Registration failed", details: err.message });
+  }
 };
 
-const getAppointments = (req, res) => {
-  const { doctorId } = req.params;
-  const result = appointments.filter((app) => app.doctorId === doctorId);
-  res.json(result);
+const getAppointments = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const appointments = await Appointment.find({ doctorId });
+    res.json(appointments);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get appointments" });
+  }
 };
 
-const rateDoctor = (req, res) => {
-  const { doctorId } = req.params;
-  const { rating } = req.body;
+const rateDoctor = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { rating } = req.body;
 
-  const doctor = doctors.find((d) => d.id === doctorId);
-  if (!doctor) return res.status(404).json({ error: "Doctor not found" });
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) return res.status(404).json({ error: "Doctor not found" });
 
-  doctor.ratings.push(rating);
-  const avgRating =
-    doctor.ratings.reduce((a, b) => a + b, 0) / doctor.ratings.length;
-  doctor.averageRating = avgRating;
+    doctor.ratings.push(rating);
+    doctor.averageRating =
+      doctor.ratings.reduce((a, b) => a + b, 0) / doctor.ratings.length;
+    await doctor.save();
 
-  res.json({ message: "Rated successfully", averageRating: avgRating });
+    res.json({
+      message: "Rated successfully",
+      averageRating: doctor.averageRating,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Rating failed" });
+  }
 };
 
-const getAllDoctors = (req, res) => {
+const getAllDoctors = async (req, res) => {
+  const doctors = await Doctor.find();
   res.json(doctors);
 };
 
-const addSlots = (req, res) => {
-  const { doctorId } = req.params;
-  const { slots } = req.body; // e.g., ["2024-06-01T09:00", "2024-06-01T10:00"]
+const addSlots = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { slots } = req.body;
 
-  const doctor = doctors.find((d) => d.id === doctorId);
-  if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) return res.status(404).json({ error: "Doctor not found" });
 
-  doctor.slots = doctor.slots || [];
-  doctor.slots.push(...slots);
-  res.json({ message: 'Slots added successfully', slots: doctor.slots });
+    doctor.slots.push(...slots);
+    await doctor.save();
+    res.json({ message: "Slots added", slots: doctor.slots });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add slots" });
+  }
 };
 
-const getSlots = (req, res) => {
-  const { doctorId } = req.params;
+const getSlots = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) return res.status(404).json({ error: "Doctor not found" });
 
-  const doctor = doctors.find((d) => d.id === doctorId);
-  if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
+    const booked = await Appointment.find({ doctorId });
+    const bookedSlots = booked.map((b) => b.slot);
 
-  // Filter out booked slots
-  const bookedSlots = appointments
-    .filter((a) => a.doctorId === doctorId)
-    .map((a) => a.slot);
-
-  const availableSlots = (doctor.slots || []).filter(slot => !bookedSlots.includes(slot));
-  res.json({ availableSlots });
+    const availableSlots = (doctor.slots || []).filter(
+      (s) => !bookedSlots.includes(s)
+    );
+    res.json({ availableSlots });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get slots" });
+  }
 };
 
 module.exports = {
@@ -66,5 +90,5 @@ module.exports = {
   rateDoctor,
   getAllDoctors,
   addSlots,
-  getSlots
+  getSlots,
 };
